@@ -5,6 +5,11 @@ import {
   inicioNoPassadoOuAgora,
   podeEditarReserva,
 } from "@/lib/reservas/validacoes-temporais";
+import {
+  adicionarIntervaloAoFim,
+  obterFimDaIndisponibilidade,
+  subtrairIntervaloDoInicio,
+} from "@/lib/reservas/intervalo-reservas";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -54,8 +59,15 @@ export async function GET(request: Request) {
     const temPermissao =
       usuario_id === sessao?.id || sessao?.papel === "admin";
 
+    const ehProprietario = sessao !== null && usuario_id === sessao.id;
+
+    const fimExibicao = ehProprietario
+      ? reserva.fim
+      : adicionarIntervaloAoFim(new Date(reserva.fim)).toISOString();
+
     return {
       ...reserva,
+      fim_exibicao: fimExibicao,
       pode_editar:
         temPermissao && podeEditarReserva(new Date(reserva.inicio), agora),
       pode_excluir: temPermissao,
@@ -268,13 +280,16 @@ export async function POST(request: Request) {
   const inicioIso = inicio.toISOString();
   const fimIso = fim.toISOString();
 
+  const inicioDaBusca = subtrairIntervaloDoInicio(inicio);
+  const fimDaBusca = obterFimDaIndisponibilidade(fim);
+
   const { data: conflitos, error: erroConflito } =
     await supabaseServidor
       .from("reservas")
       .select("id, inicio, fim")
       .eq("sala_id", salaId)
-      .lt("inicio", fimIso)
-      .gt("fim", inicioIso)
+      .lt("inicio", fimDaBusca.toISOString())
+      .gt("fim", inicioDaBusca.toISOString())
       .limit(1);
 
   if (erroConflito) {
@@ -331,7 +346,12 @@ export async function POST(request: Request) {
   }
 
   return Response.json(
-    { ...reserva, pode_editar: true, pode_excluir: true },
+    {
+      ...reserva,
+      fim_exibicao: reserva.fim,
+      pode_editar: true,
+      pode_excluir: true,
+    },
     { status: 201 }
   );
 }

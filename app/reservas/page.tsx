@@ -22,6 +22,7 @@ type Reserva = {
     participantes: number;
     inicio: string;
     fim: string;
+    fim_exibicao: string;
     duracao_minutos: number;
     criada_em: string;
     sala: Sala | null;
@@ -835,7 +836,7 @@ export default function PaginaDeReservas() {
 
                                                 <p className="mt-1">
                                                     <strong>Fim:</strong>{" "}
-                                                    {formatarHorario(reserva.fim)}
+                                                    {formatarHorario(reserva.fim_exibicao)}
                                                 </p>
 
                                                 <p className="mt-1">
