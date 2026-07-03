@@ -22,6 +22,8 @@ export default function PaginaDeSalas() {
     const [salaEmEdicaoId, setSalaEmEdicaoId] = useState<string | null>(
         null
     );
+    const [salaSendoExcluidaId, setSalaSendoExcluidaId] =
+        useState<string | null>(null);
 
     useEffect(() => {
         async function carregarSalas() {
@@ -129,6 +131,52 @@ export default function PaginaDeSalas() {
         setNome("");
         setCapacidade("");
         setErroFormulario("");
+    }
+
+    async function excluirSala(sala: Sala) {
+        const confirmou = window.confirm(
+            `Deseja realmente excluir a sala "${sala.nome}"?`
+        );
+
+        if (!confirmou) {
+            return;
+        }
+
+        setSalaSendoExcluidaId(sala.id);
+        setErroFormulario("");
+        setMensagem("");
+
+        try {
+            const resposta = await fetch(`/api/salas/${sala.id}`, {
+                method: "DELETE",
+            });
+
+            const resultado = await resposta.json();
+
+            if (!resposta.ok) {
+                throw new Error(
+                    resultado.erro ?? "Não foi possível excluir a sala."
+                );
+            }
+
+            setSalas((salasAtuais) =>
+                salasAtuais.filter((salaAtual) => salaAtual.id !== sala.id)
+            );
+
+            if (salaEmEdicaoId === sala.id) {
+                cancelarEdicao();
+            }
+
+            setMensagem("Sala excluída com sucesso.");
+        } catch (erro) {
+            setErroFormulario(
+                erro instanceof Error
+                    ? erro.message
+                    : "Ocorreu um erro ao excluir a sala."
+            );
+        } finally {
+            setSalaSendoExcluidaId(null);
+        }
     }
 
     return (
@@ -285,9 +333,21 @@ export default function PaginaDeSalas() {
                                         <button
                                             type="button"
                                             onClick={() => iniciarEdicao(sala)}
-                                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+                                            disabled={salaSendoExcluidaId === sala.id}
+                                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
                                         >
                                             Editar
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => excluirSala(sala)}
+                                            disabled={salaSendoExcluidaId === sala.id}
+                                            className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                        >
+                                            {salaSendoExcluidaId === sala.id
+                                                ? "Excluindo..."
+                                                : "Excluir"}
                                         </button>
                                     </div>
                                 </li>
