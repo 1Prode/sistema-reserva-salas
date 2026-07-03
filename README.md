@@ -89,7 +89,6 @@ Supabase / PostgreSQL
 | Validação de término posterior ao início | Implementado |
 | README com setup, premissas e decisões | Implementado neste documento |
 | Histórico de commits | Disponível no GitHub |
-| Vídeo de demonstração | Pendente de inclusão do link |
 
 ### Diferenciais
 
