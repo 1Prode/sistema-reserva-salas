@@ -1,4 +1,10 @@
 import { supabaseServidor } from "@/lib/supabase/servidor";
+import { obterSessao } from "@/lib/auth/dal";
+import {
+  dataUltrapassaLimite,
+  inicioNoPassadoOuAgora,
+  podeEditarReserva,
+} from "@/lib/reservas/validacoes-temporais";
 
 type ContextoDaRota = {
   params: Promise<{
@@ -12,6 +18,8 @@ export async function GET(
 ) {
   const { id } = await contexto.params;
 
+  const sessao = await obterSessao();
+
   const { data: reserva, error } = await supabaseServidor
     .from("reservas")
     .select(`
@@ -24,6 +32,7 @@ export async function GET(
       fim,
       duracao_minutos,
       criada_em,
+      usuario_id,
       sala:salas (
         id,
         nome,
@@ -49,13 +58,22 @@ export async function GET(
     );
   }
 
-  return Response.json(reserva);
+  const { usuario_id, ...reservaSemUsuarioId } = reserva;
+
+  const temPermissao =
+    usuario_id === sessao?.id || sessao?.papel === "admin";
+
+  return Response.json({
+    ...reservaSemUsuarioId,
+    pode_editar:
+      temPermissao && podeEditarReserva(new Date(reserva.inicio)),
+    pode_excluir: temPermissao,
+  });
 }
 
 type CorpoDaReserva = {
   sala_id?: unknown;
   titulo?: unknown;
-  responsavel?: unknown;
   participantes?: unknown;
   data?: unknown;
   horario_inicio?: unknown;
@@ -68,10 +86,19 @@ export async function PUT(
 ) {
   const { id } = await contexto.params;
 
+  const sessao = await obterSessao();
+
+  if (!sessao) {
+    return Response.json(
+      { erro: "É necessário entrar para editar uma reserva." },
+      { status: 401 }
+    );
+  }
+
   const { data: reservaExistente, error: erroBuscaReserva } =
     await supabaseServidor
       .from("reservas")
-      .select("id")
+      .select("id, usuario_id, inicio")
       .eq("id", id)
       .maybeSingle();
 
@@ -88,6 +115,26 @@ export async function PUT(
     return Response.json(
       { erro: "Reserva não encontrada." },
       { status: 404 }
+    );
+  }
+
+  const podeEditar =
+    reservaExistente.usuario_id === sessao.id ||
+    sessao.papel === "admin";
+
+  if (!podeEditar) {
+    return Response.json(
+      { erro: "Você não possui permissão para editar esta reserva." },
+      { status: 403 }
+    );
+  }
+
+  if (!podeEditarReserva(new Date(reservaExistente.inicio))) {
+    return Response.json(
+      {
+        erro: "Reservas em andamento ou encerradas não podem ser editadas.",
+      },
+      { status: 409 }
     );
   }
 
@@ -112,11 +159,6 @@ export async function PUT(
       ? corpo.titulo.trim()
       : "";
 
-  const responsavel =
-    typeof corpo.responsavel === "string"
-      ? corpo.responsavel.trim()
-      : "";
-
   const data =
     typeof corpo.data === "string"
       ? corpo.data
@@ -130,7 +172,7 @@ export async function PUT(
   const participantes = Number(corpo.participantes);
   const duracaoMinutos = Number(corpo.duracao_minutos);
 
-  if (!salaId || !titulo || !responsavel || !data || !horarioInicio) {
+  if (!salaId || !titulo || !data || !horarioInicio) {
     return Response.json(
       { erro: "Todos os campos são obrigatórios." },
       { status: 400 }
@@ -274,6 +316,26 @@ export async function PUT(
     `${data}T${horarioInicio}:00-03:00`
   );
 
+  const agora = new Date();
+
+  if (inicioNoPassadoOuAgora(inicio, agora)) {
+    return Response.json(
+      {
+        erro: "Não é possível alterar a reserva para uma data ou horário passado.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (dataUltrapassaLimite(data, agora)) {
+    return Response.json(
+      {
+        erro: "As reservas podem ser realizadas com no máximo 15 dias de antecedência.",
+      },
+      { status: 400 }
+    );
+  }
+
   const fim = new Date(
     inicio.getTime() + duracaoMinutos * 60 * 1000
   );
@@ -320,7 +382,6 @@ export async function PUT(
       .update({
         sala_id: salaId,
         titulo,
-        responsavel,
         participantes,
         inicio: inicioIso,
         fim: fimIso,
@@ -359,7 +420,11 @@ export async function PUT(
     );
   }
 
-  return Response.json(reservaAtualizada);
+  return Response.json({
+    ...reservaAtualizada,
+    pode_editar: true,
+    pode_excluir: true,
+  });
 }
 
 export async function DELETE(
@@ -367,6 +432,49 @@ export async function DELETE(
   contexto: ContextoDaRota
 ) {
   const { id } = await contexto.params;
+
+  const sessao = await obterSessao();
+
+  if (!sessao) {
+    return Response.json(
+      { erro: "É necessário entrar para excluir uma reserva." },
+      { status: 401 }
+    );
+  }
+
+  const { data: reservaExistente, error: erroBuscaReserva } =
+    await supabaseServidor
+      .from("reservas")
+      .select("id, usuario_id")
+      .eq("id", id)
+      .maybeSingle();
+
+  if (erroBuscaReserva) {
+    console.error("Erro ao buscar reserva:", erroBuscaReserva);
+
+    return Response.json(
+      { erro: "Não foi possível consultar a reserva." },
+      { status: 500 }
+    );
+  }
+
+  if (!reservaExistente) {
+    return Response.json(
+      { erro: "Reserva não encontrada." },
+      { status: 404 }
+    );
+  }
+
+  const podeExcluir =
+    reservaExistente.usuario_id === sessao.id ||
+    sessao.papel === "admin";
+
+  if (!podeExcluir) {
+    return Response.json(
+      { erro: "Você não possui permissão para excluir esta reserva." },
+      { status: 403 }
+    );
+  }
 
   const { data, error } = await supabaseServidor
     .from("reservas")

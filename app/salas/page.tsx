@@ -8,6 +8,8 @@ type Sala = {
     nome: string;
     capacidade: number;
     criada_em: string;
+    pode_editar: boolean;
+    pode_excluir: boolean;
 };
 
 export default function PaginaDeSalas() {
@@ -119,6 +121,10 @@ export default function PaginaDeSalas() {
     }
 
     function iniciarEdicao(sala: Sala) {
+        if (!sala.pode_editar) {
+            return;
+        }
+
         setSalaEmEdicaoId(sala.id);
         setNome(sala.nome);
         setCapacidade(String(sala.capacidade));
@@ -134,6 +140,10 @@ export default function PaginaDeSalas() {
     }
 
     async function excluirSala(sala: Sala) {
+        if (!sala.pode_excluir) {
+            return;
+        }
+
         const confirmou = window.confirm(
             `Deseja realmente excluir a sala "${sala.nome}"?`
         );
@@ -330,25 +340,29 @@ export default function PaginaDeSalas() {
                                             {sala.capacidade} pessoas
                                         </span>
 
-                                        <button
-                                            type="button"
-                                            onClick={() => iniciarEdicao(sala)}
-                                            disabled={salaSendoExcluidaId === sala.id}
-                                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
-                                        >
-                                            Editar
-                                        </button>
+                                        {sala.pode_editar && (
+                                            <button
+                                                type="button"
+                                                onClick={() => iniciarEdicao(sala)}
+                                                disabled={salaSendoExcluidaId === sala.id}
+                                                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                                            >
+                                                Editar
+                                            </button>
+                                        )}
 
-                                        <button
-                                            type="button"
-                                            onClick={() => excluirSala(sala)}
-                                            disabled={salaSendoExcluidaId === sala.id}
-                                            className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                                        >
-                                            {salaSendoExcluidaId === sala.id
-                                                ? "Excluindo..."
-                                                : "Excluir"}
-                                        </button>
+                                        {sala.pode_excluir && (
+                                            <button
+                                                type="button"
+                                                onClick={() => excluirSala(sala)}
+                                                disabled={salaSendoExcluidaId === sala.id}
+                                                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                            >
+                                                {salaSendoExcluidaId === sala.id
+                                                    ? "Excluindo..."
+                                                    : "Excluir"}
+                                            </button>
+                                        )}
                                     </div>
                                 </li>
                             ))}

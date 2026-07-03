@@ -2,6 +2,11 @@
 
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
+import { SeletorData } from "@/components/seletor-data";
+import {
+    obterDataAtualFortaleza,
+    obterDataLimiteReserva,
+} from "@/lib/reservas/validacoes-temporais";
 
 type Sala = {
     id: string;
@@ -20,9 +25,13 @@ type Reserva = {
     duracao_minutos: number;
     criada_em: string;
     sala: Sala | null;
+    pode_editar: boolean;
+    pode_excluir: boolean;
 };
 
 type EstadoDaReserva = "Próxima" | "Em andamento" | "Encerrada";
+
+type FiltroSituacao = "ativas" | "finalizadas";
 
 function obterEstadoDaReserva(
     reserva: Reserva,
@@ -116,7 +125,6 @@ export default function PaginaDeReservas() {
 
     const [salaId, setSalaId] = useState("");
     const [titulo, setTitulo] = useState("");
-    const [responsavel, setResponsavel] = useState("");
     const [participantes, setParticipantes] = useState("");
     const [data, setData] = useState("");
     const [horarioInicio, setHorarioInicio] = useState("");
@@ -127,6 +135,8 @@ export default function PaginaDeReservas() {
     const [mensagem, setMensagem] = useState("");
 
     const [salaFiltroId, setSalaFiltroId] = useState("");
+    const [filtroSituacao, setFiltroSituacao] =
+        useState<FiltroSituacao>("ativas");
 
     const [reservaEmEdicaoId, setReservaEmEdicaoId] = useState<
         string | null
@@ -139,11 +149,22 @@ export default function PaginaDeReservas() {
         Number(duracaoMinutos)
     );
 
-    const reservasFiltradas = salaFiltroId
-        ? reservas.filter(
-            (reserva) => reserva.sala_id === salaFiltroId
-        )
-        : reservas;
+    const dataMinima = obterDataAtualFortaleza();
+    const dataMaxima = obterDataLimiteReserva();
+
+    const agora = horarioAtual.getTime();
+
+    const reservasFiltradas = reservas.filter((reserva) => {
+        const correspondeSala =
+            !salaFiltroId || reserva.sala_id === salaFiltroId;
+
+        const finalizada = new Date(reserva.fim).getTime() <= agora;
+
+        const correspondeSituacao =
+            filtroSituacao === "finalizadas" ? finalizada : !finalizada;
+
+        return correspondeSala && correspondeSituacao;
+    });
 
     useEffect(() => {
         async function carregarReservas() {
@@ -235,7 +256,6 @@ export default function PaginaDeReservas() {
                     body: JSON.stringify({
                         sala_id: salaId,
                         titulo,
-                        responsavel,
                         participantes: Number(participantes),
                         data,
                         horario_inicio: horarioInicio,
@@ -290,7 +310,6 @@ export default function PaginaDeReservas() {
 
             setSalaId("");
             setTitulo("");
-            setResponsavel("");
             setParticipantes("");
             setData("");
             setHorarioInicio("");
@@ -308,12 +327,15 @@ export default function PaginaDeReservas() {
     }
 
     function iniciarEdicao(reserva: Reserva) {
+        if (!reserva.pode_editar) {
+            return;
+        }
+
         const valores = obterDataEHorarioDaReserva(reserva.inicio);
 
         setReservaEmEdicaoId(reserva.id);
         setSalaId(reserva.sala_id);
         setTitulo(reserva.titulo);
-        setResponsavel(reserva.responsavel);
         setParticipantes(String(reserva.participantes));
         setData(valores.data);
         setDuracaoMinutos(String(reserva.duracao_minutos));
@@ -332,7 +354,6 @@ export default function PaginaDeReservas() {
         setReservaEmEdicaoId(null);
         setSalaId("");
         setTitulo("");
-        setResponsavel("");
         setParticipantes("");
         setData("");
         setHorarioInicio("");
@@ -342,6 +363,10 @@ export default function PaginaDeReservas() {
     }
 
     async function excluirReserva(reserva: Reserva) {
+        if (!reserva.pode_excluir) {
+            return;
+        }
+
         const confirmou = window.confirm(
             `Deseja realmente excluir a reserva "${reserva.titulo}"?`
         );
@@ -463,28 +488,6 @@ export default function PaginaDeReservas() {
 
                         <div>
                             <label
-                                htmlFor="responsavel"
-                                className="mb-2 block text-sm font-medium"
-                            >
-                                Responsável
-                            </label>
-
-                            <input
-                                id="responsavel"
-                                type="text"
-                                value={responsavel}
-                                onChange={(evento) =>
-                                    setResponsavel(evento.target.value)
-                                }
-                                placeholder="Nome do responsável"
-                                required
-                                maxLength={100}
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2"
-                            />
-                        </div>
-
-                        <div>
-                            <label
                                 htmlFor="participantes"
                                 className="mb-2 block text-sm font-medium"
                             >
@@ -513,14 +516,18 @@ export default function PaginaDeReservas() {
                                 Data
                             </label>
 
-                            <input
+                            <SeletorData
                                 id="data"
-                                type="date"
                                 value={data}
-                                onChange={(evento) => setData(evento.target.value)}
+                                onChange={setData}
+                                min={dataMinima}
+                                max={dataMaxima}
                                 required
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2"
                             />
+
+                            <p className="mt-2 text-xs text-slate-500">
+                                Reservas podem ser feitas com até 15 dias de antecedência.
+                            </p>
                         </div>
 
                         <div>
@@ -623,30 +630,64 @@ export default function PaginaDeReservas() {
                         </span>
                     </div>
 
-                    <div className="mb-5">
-                        <label
-                            htmlFor="filtro-sala"
-                            className="mb-2 block text-sm font-medium"
-                        >
-                            Filtrar por sala
-                        </label>
+                    <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap">
+                        <div>
+                            <label
+                                htmlFor="filtro-sala"
+                                className="mb-2 block text-sm font-medium"
+                            >
+                                Filtrar por sala
+                            </label>
 
-                        <select
-                            id="filtro-sala"
-                            value={salaFiltroId}
-                            onChange={(evento) =>
-                                setSalaFiltroId(evento.target.value)
-                            }
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 md:max-w-sm"
-                        >
-                            <option value="">Todas as salas</option>
+                            <select
+                                id="filtro-sala"
+                                value={salaFiltroId}
+                                onChange={(evento) =>
+                                    setSalaFiltroId(evento.target.value)
+                                }
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 sm:w-64"
+                            >
+                                <option value="">Todas as salas</option>
 
-                            {salas.map((sala) => (
-                                <option key={sala.id} value={sala.id}>
-                                    {sala.nome}
-                                </option>
-                            ))}
-                        </select>
+                                {salas.map((sala) => (
+                                    <option key={sala.id} value={sala.id}>
+                                        {sala.nome}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <span className="mb-2 block text-sm font-medium">
+                                Situação
+                            </span>
+
+                            <div className="inline-flex rounded-lg border border-slate-300 p-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setFiltroSituacao("ativas")}
+                                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                                        filtroSituacao === "ativas"
+                                            ? "bg-slate-900 text-white"
+                                            : "text-slate-600 hover:bg-slate-100"
+                                    }`}
+                                >
+                                    Ativas
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setFiltroSituacao("finalizadas")}
+                                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                                        filtroSituacao === "finalizadas"
+                                            ? "bg-slate-900 text-white"
+                                            : "text-slate-600 hover:bg-slate-100"
+                                    }`}
+                                >
+                                    Finalizadas
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     {carregando && (
@@ -663,9 +704,9 @@ export default function PaginaDeReservas() {
 
                     {!carregando && !erro && reservasFiltradas.length === 0 && (
                         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-slate-500">
-                            {salaFiltroId
-                                ? "Nenhuma reserva encontrada para esta sala."
-                                : "Nenhuma reserva cadastrada."}
+                            {filtroSituacao === "finalizadas"
+                                ? "Não há reservas finalizadas para os filtros selecionados."
+                                : "Não há reservas ativas para os filtros selecionados."}
                         </div>
                     )}
 
@@ -730,27 +771,33 @@ export default function PaginaDeReservas() {
                                                     Duração: {reserva.duracao_minutos} minutos
                                                 </p>
 
-                                                <div className="mt-4 flex gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => iniciarEdicao(reserva)}
-                                                        disabled={reservaSendoExcluidaId === reserva.id}
-                                                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
-                                                    >
-                                                        Editar
-                                                    </button>
+                                                {(reserva.pode_editar || reserva.pode_excluir) && (
+                                                    <div className="mt-4 flex gap-2">
+                                                        {reserva.pode_editar && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => iniciarEdicao(reserva)}
+                                                                disabled={reservaSendoExcluidaId === reserva.id}
+                                                                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                                                            >
+                                                                Editar
+                                                            </button>
+                                                        )}
 
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => excluirReserva(reserva)}
-                                                        disabled={reservaSendoExcluidaId === reserva.id}
-                                                        className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                                                    >
-                                                        {reservaSendoExcluidaId === reserva.id
-                                                            ? "Excluindo..."
-                                                            : "Excluir"}
-                                                    </button>
-                                                </div>
+                                                        {reserva.pode_excluir && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => excluirReserva(reserva)}
+                                                                disabled={reservaSendoExcluidaId === reserva.id}
+                                                                className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                                            >
+                                                                {reservaSendoExcluidaId === reserva.id
+                                                                    ? "Excluindo..."
+                                                                    : "Excluir"}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </li>

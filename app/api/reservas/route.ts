@@ -1,8 +1,16 @@
 import { supabaseServidor } from "@/lib/supabase/servidor";
+import { obterSessao } from "@/lib/auth/dal";
+import {
+  dataUltrapassaLimite,
+  inicioNoPassadoOuAgora,
+  podeEditarReserva,
+} from "@/lib/reservas/validacoes-temporais";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const salaId = url.searchParams.get("sala_id");
+
+  const sessao = await obterSessao();
 
   let consulta = supabaseServidor
     .from("reservas")
@@ -16,6 +24,7 @@ export async function GET(request: Request) {
       fim,
       duracao_minutos,
       criada_em,
+      usuario_id,
       sala:salas (
         id,
         nome,
@@ -39,13 +48,26 @@ export async function GET(request: Request) {
     );
   }
 
-  return Response.json(data);
+  const agora = new Date();
+
+  const reservas = data.map(({ usuario_id, ...reserva }) => {
+    const temPermissao =
+      usuario_id === sessao?.id || sessao?.papel === "admin";
+
+    return {
+      ...reserva,
+      pode_editar:
+        temPermissao && podeEditarReserva(new Date(reserva.inicio), agora),
+      pode_excluir: temPermissao,
+    };
+  });
+
+  return Response.json(reservas);
 }
 
 type CorpoDaReserva = {
   sala_id?: unknown;
   titulo?: unknown;
-  responsavel?: unknown;
   participantes?: unknown;
   data?: unknown;
   horario_inicio?: unknown;
@@ -53,6 +75,15 @@ type CorpoDaReserva = {
 };
 
 export async function POST(request: Request) {
+  const sessao = await obterSessao();
+
+  if (!sessao) {
+    return Response.json(
+      { erro: "É necessário entrar para criar uma reserva." },
+      { status: 401 }
+    );
+  }
+
   let corpo: CorpoDaReserva;
 
   try {
@@ -70,11 +101,6 @@ export async function POST(request: Request) {
   const titulo =
     typeof corpo.titulo === "string" ? corpo.titulo.trim() : "";
 
-  const responsavel =
-    typeof corpo.responsavel === "string"
-      ? corpo.responsavel.trim()
-      : "";
-
   const data = typeof corpo.data === "string" ? corpo.data : "";
 
   const horarioInicio =
@@ -85,7 +111,7 @@ export async function POST(request: Request) {
   const participantes = Number(corpo.participantes);
   const duracaoMinutos = Number(corpo.duracao_minutos);
 
-  if (!salaId || !titulo || !responsavel || !data || !horarioInicio) {
+  if (!salaId || !titulo || !data || !horarioInicio) {
     return Response.json(
       { erro: "Todos os campos são obrigatórios." },
       { status: 400 }
@@ -215,6 +241,26 @@ export async function POST(request: Request) {
     `${data}T${horarioInicio}:00-03:00`
   );
 
+  const agora = new Date();
+
+  if (inicioNoPassadoOuAgora(inicio, agora)) {
+    return Response.json(
+      {
+        erro: "Não é possível criar uma reserva em uma data ou horário passado.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (dataUltrapassaLimite(data, agora)) {
+    return Response.json(
+      {
+        erro: "As reservas podem ser realizadas com no máximo 15 dias de antecedência.",
+      },
+      { status: 400 }
+    );
+  }
+
   const fim = new Date(
     inicio.getTime() + duracaoMinutos * 60 * 1000
   );
@@ -255,11 +301,12 @@ export async function POST(request: Request) {
       .insert({
         sala_id: salaId,
         titulo,
-        responsavel,
+        responsavel: sessao.nome,
         participantes,
         inicio: inicioIso,
         fim: fimIso,
         duracao_minutos: duracaoMinutos,
+        usuario_id: sessao.id,
       })
       .select(`
         id,
@@ -283,5 +330,8 @@ export async function POST(request: Request) {
     );
   }
 
-  return Response.json(reserva, { status: 201 });
+  return Response.json(
+    { ...reserva, pode_editar: true, pode_excluir: true },
+    { status: 201 }
+  );
 }
