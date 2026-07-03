@@ -2,6 +2,11 @@
 
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
+import { SeletorData } from "@/components/seletor-data";
+import {
+    obterDataAtualFortaleza,
+    obterDataLimiteReserva,
+} from "@/lib/reservas/validacoes-temporais";
 
 type Sala = {
     id: string;
@@ -21,6 +26,7 @@ type Reserva = {
     criada_em: string;
     sala: Sala | null;
     pode_editar: boolean;
+    pode_excluir: boolean;
 };
 
 type EstadoDaReserva = "Próxima" | "Em andamento" | "Encerrada";
@@ -139,6 +145,9 @@ export default function PaginaDeReservas() {
     const horariosDisponiveis = gerarHorarios(
         Number(duracaoMinutos)
     );
+
+    const dataMinima = obterDataAtualFortaleza();
+    const dataMaxima = obterDataLimiteReserva();
 
     const reservasFiltradas = salaFiltroId
         ? reservas.filter(
@@ -347,7 +356,7 @@ export default function PaginaDeReservas() {
     }
 
     async function excluirReserva(reserva: Reserva) {
-        if (!reserva.pode_editar) {
+        if (!reserva.pode_excluir) {
             return;
         }
 
@@ -522,14 +531,18 @@ export default function PaginaDeReservas() {
                                 Data
                             </label>
 
-                            <input
+                            <SeletorData
                                 id="data"
-                                type="date"
                                 value={data}
-                                onChange={(evento) => setData(evento.target.value)}
+                                onChange={setData}
+                                min={dataMinima}
+                                max={dataMaxima}
                                 required
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2"
                             />
+
+                            <p className="mt-2 text-xs text-slate-500">
+                                Reservas podem ser feitas com até 15 dias de antecedência.
+                            </p>
                         </div>
 
                         <div>
@@ -739,27 +752,31 @@ export default function PaginaDeReservas() {
                                                     Duração: {reserva.duracao_minutos} minutos
                                                 </p>
 
-                                                {reserva.pode_editar && (
+                                                {(reserva.pode_editar || reserva.pode_excluir) && (
                                                     <div className="mt-4 flex gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => iniciarEdicao(reserva)}
-                                                            disabled={reservaSendoExcluidaId === reserva.id}
-                                                            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
-                                                        >
-                                                            Editar
-                                                        </button>
+                                                        {reserva.pode_editar && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => iniciarEdicao(reserva)}
+                                                                disabled={reservaSendoExcluidaId === reserva.id}
+                                                                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                                                            >
+                                                                Editar
+                                                            </button>
+                                                        )}
 
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => excluirReserva(reserva)}
-                                                            disabled={reservaSendoExcluidaId === reserva.id}
-                                                            className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                                                        >
-                                                            {reservaSendoExcluidaId === reserva.id
-                                                                ? "Excluindo..."
-                                                                : "Excluir"}
-                                                        </button>
+                                                        {reserva.pode_excluir && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => excluirReserva(reserva)}
+                                                                disabled={reservaSendoExcluidaId === reserva.id}
+                                                                className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                                            >
+                                                                {reservaSendoExcluidaId === reserva.id
+                                                                    ? "Excluindo..."
+                                                                    : "Excluir"}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
