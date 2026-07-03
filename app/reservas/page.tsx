@@ -86,6 +86,27 @@ function gerarHorarios(duracaoMinutos: number) {
     return horarios;
 }
 
+function obterDataEHorarioDaReserva(inicioIso: string) {
+    const partes = new Intl.DateTimeFormat("pt-BR", {
+        timeZone: "America/Fortaleza",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    }).formatToParts(new Date(inicioIso));
+
+    const valores = Object.fromEntries(
+        partes.map((parte) => [parte.type, parte.value])
+    );
+
+    return {
+        data: `${valores.year}-${valores.month}-${valores.day}`,
+        horario: `${valores.hour}:${valores.minute}`,
+    };
+}
+
 export default function PaginaDeReservas() {
     const [reservas, setReservas] = useState<Reserva[]>([]);
     const [carregando, setCarregando] = useState(true);
@@ -106,6 +127,10 @@ export default function PaginaDeReservas() {
     const [mensagem, setMensagem] = useState("");
 
     const [salaFiltroId, setSalaFiltroId] = useState("");
+
+    const [reservaEmEdicaoId, setReservaEmEdicaoId] = useState<
+        string | null
+    >(null);
 
     const horariosDisponiveis = gerarHorarios(
         Number(duracaoMinutos)
@@ -183,7 +208,7 @@ export default function PaginaDeReservas() {
         return () => window.clearInterval(intervalo);
     }, []);
 
-    async function cadastrarReserva(
+    async function salvarReserva(
         evento: FormEvent<HTMLFormElement>
     ) {
         evento.preventDefault();
@@ -193,63 +218,124 @@ export default function PaginaDeReservas() {
         setMensagem("");
 
         try {
-            const resposta = await fetch("/api/reservas", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    sala_id: salaId,
-                    titulo,
-                    responsavel,
-                    participantes: Number(participantes),
-                    data,
-                    horario_inicio: horarioInicio,
-                    duracao_minutos: Number(duracaoMinutos),
-                }),
-            });
+            const editando = reservaEmEdicaoId !== null;
+
+            const resposta = await fetch(
+                editando
+                    ? `/api/reservas/${reservaEmEdicaoId}`
+                    : "/api/reservas",
+                {
+                    method: editando ? "PUT" : "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        sala_id: salaId,
+                        titulo,
+                        responsavel,
+                        participantes: Number(participantes),
+                        data,
+                        horario_inicio: horarioInicio,
+                        duracao_minutos: Number(duracaoMinutos),
+                    }),
+                }
+            );
 
             const resultado = await resposta.json();
 
             if (!resposta.ok) {
                 throw new Error(
-                    resultado.erro ?? "Não foi possível criar a reserva."
+                    resultado.erro ?? "Não foi possível salvar a reserva."
                 );
             }
 
             const salaSelecionada =
                 salas.find((sala) => sala.id === salaId) ?? null;
 
-            const novaReserva: Reserva = {
+            const reservaSalva: Reserva = {
                 ...resultado,
                 sala: salaSelecionada,
             };
 
-            setReservas((reservasAtuais) =>
-                [...reservasAtuais, novaReserva].sort(
-                    (reservaA, reservaB) =>
-                        new Date(reservaA.inicio).getTime() -
-                        new Date(reservaB.inicio).getTime()
-                )
-            );
+            if (editando) {
+                setReservas((reservasAtuais) =>
+                    reservasAtuais
+                        .map((reserva) =>
+                            reserva.id === reservaSalva.id
+                                ? reservaSalva
+                                : reserva
+                        )
+                        .sort(
+                            (reservaA, reservaB) =>
+                                new Date(reservaA.inicio).getTime() -
+                                new Date(reservaB.inicio).getTime()
+                        )
+                );
 
+                setMensagem("Reserva atualizada com sucesso.");
+            } else {
+                setReservas((reservasAtuais) =>
+                    [...reservasAtuais, reservaSalva].sort(
+                        (reservaA, reservaB) =>
+                            new Date(reservaA.inicio).getTime() -
+                            new Date(reservaB.inicio).getTime()
+                    )
+                );
+
+                setMensagem("Reserva criada com sucesso.");
+            }
+
+            setSalaId("");
             setTitulo("");
             setResponsavel("");
             setParticipantes("");
             setData("");
             setHorarioInicio("");
             setDuracaoMinutos("30");
-
-            setMensagem("Reserva criada com sucesso.");
+            setReservaEmEdicaoId(null);
         } catch (erro) {
             setErroFormulario(
                 erro instanceof Error
                     ? erro.message
-                    : "Ocorreu um erro ao criar a reserva."
+                    : "Ocorreu um erro ao salvar a reserva."
             );
         } finally {
             setSalvando(false);
         }
+    }
+
+    function iniciarEdicao(reserva: Reserva) {
+        const valores = obterDataEHorarioDaReserva(reserva.inicio);
+
+        setReservaEmEdicaoId(reserva.id);
+        setSalaId(reserva.sala_id);
+        setTitulo(reserva.titulo);
+        setResponsavel(reserva.responsavel);
+        setParticipantes(String(reserva.participantes));
+        setData(valores.data);
+        setDuracaoMinutos(String(reserva.duracao_minutos));
+        setHorarioInicio(valores.horario);
+
+        setErroFormulario("");
+        setMensagem("");
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
+    }
+
+    function cancelarEdicao() {
+        setReservaEmEdicaoId(null);
+        setSalaId("");
+        setTitulo("");
+        setResponsavel("");
+        setParticipantes("");
+        setData("");
+        setHorarioInicio("");
+        setDuracaoMinutos("30");
+        setErroFormulario("");
+        setMensagem("");
     }
 
     return (
@@ -265,7 +351,7 @@ export default function PaginaDeReservas() {
 
                 <section className="mb-8 rounded-xl bg-white p-6 shadow-sm">
                     <h2 className="mb-5 text-xl font-semibold">
-                        Nova reserva
+                        {reservaEmEdicaoId ? "Editar reserva" : "Nova reserva"}
                     </h2>
 
                     {salas.length === 0 && (
@@ -276,7 +362,7 @@ export default function PaginaDeReservas() {
                     )}
 
                     <form
-                        onSubmit={cadastrarReserva}
+                        onSubmit={salvarReserva}
                         className="grid gap-4 md:grid-cols-2"
                     >
                         <div>
@@ -436,14 +522,29 @@ export default function PaginaDeReservas() {
                             </select>
                         </div>
 
-                        <div className="flex items-end">
+                        <div className="flex items-end gap-2">
                             <button
                                 type="submit"
                                 disabled={salvando || salas.length === 0}
                                 className="w-full rounded-lg bg-slate-900 px-5 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                {salvando ? "Reservando..." : "Criar reserva"}
+                                {salvando
+                                    ? "Salvando..."
+                                    : reservaEmEdicaoId
+                                        ? "Atualizar reserva"
+                                        : "Criar reserva"}
                             </button>
+
+                            {reservaEmEdicaoId && (
+                                <button
+                                    type="button"
+                                    onClick={cancelarEdicao}
+                                    disabled={salvando}
+                                    className="rounded-lg border border-slate-300 px-4 py-2 font-medium hover:bg-slate-50"
+                                >
+                                    Cancelar
+                                </button>
+                            )}
                         </div>
                     </form>
 
@@ -577,6 +678,14 @@ export default function PaginaDeReservas() {
                                                 <p className="mt-1">
                                                     Duração: {reserva.duracao_minutos} minutos
                                                 </p>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => iniciarEdicao(reserva)}
+                                                    className="mt-4 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
+                                                >
+                                                    Editar
+                                                </button>
                                             </div>
                                         </div>
                                     </li>
