@@ -1,8 +1,11 @@
 import { supabaseServidor } from "@/lib/supabase/servidor";
+import { obterSessao } from "@/lib/auth/dal";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const salaId = url.searchParams.get("sala_id");
+
+  const sessao = await obterSessao();
 
   let consulta = supabaseServidor
     .from("reservas")
@@ -16,6 +19,7 @@ export async function GET(request: Request) {
       fim,
       duracao_minutos,
       criada_em,
+      usuario_id,
       sala:salas (
         id,
         nome,
@@ -39,7 +43,14 @@ export async function GET(request: Request) {
     );
   }
 
-  return Response.json(data);
+  const reservas = data.map(({ usuario_id, ...reserva }) => ({
+    ...reserva,
+    pode_editar:
+      sessao !== null &&
+      (usuario_id === sessao.id || sessao.papel === "admin"),
+  }));
+
+  return Response.json(reservas);
 }
 
 type CorpoDaReserva = {
@@ -53,6 +64,15 @@ type CorpoDaReserva = {
 };
 
 export async function POST(request: Request) {
+  const sessao = await obterSessao();
+
+  if (!sessao) {
+    return Response.json(
+      { erro: "É necessário entrar para criar uma reserva." },
+      { status: 401 }
+    );
+  }
+
   let corpo: CorpoDaReserva;
 
   try {
@@ -260,6 +280,7 @@ export async function POST(request: Request) {
         inicio: inicioIso,
         fim: fimIso,
         duracao_minutos: duracaoMinutos,
+        usuario_id: sessao.id,
       })
       .select(`
         id,
@@ -283,5 +304,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return Response.json(reserva, { status: 201 });
+  return Response.json({ ...reserva, pode_editar: true }, { status: 201 });
 }

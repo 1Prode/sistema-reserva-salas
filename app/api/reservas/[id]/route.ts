@@ -1,4 +1,5 @@
 import { supabaseServidor } from "@/lib/supabase/servidor";
+import { obterSessao } from "@/lib/auth/dal";
 
 type ContextoDaRota = {
   params: Promise<{
@@ -12,6 +13,8 @@ export async function GET(
 ) {
   const { id } = await contexto.params;
 
+  const sessao = await obterSessao();
+
   const { data: reserva, error } = await supabaseServidor
     .from("reservas")
     .select(`
@@ -24,6 +27,7 @@ export async function GET(
       fim,
       duracao_minutos,
       criada_em,
+      usuario_id,
       sala:salas (
         id,
         nome,
@@ -49,7 +53,14 @@ export async function GET(
     );
   }
 
-  return Response.json(reserva);
+  const { usuario_id, ...reservaSemUsuarioId } = reserva;
+
+  return Response.json({
+    ...reservaSemUsuarioId,
+    pode_editar:
+      sessao !== null &&
+      (usuario_id === sessao.id || sessao.papel === "admin"),
+  });
 }
 
 type CorpoDaReserva = {
@@ -68,10 +79,19 @@ export async function PUT(
 ) {
   const { id } = await contexto.params;
 
+  const sessao = await obterSessao();
+
+  if (!sessao) {
+    return Response.json(
+      { erro: "É necessário entrar para editar uma reserva." },
+      { status: 401 }
+    );
+  }
+
   const { data: reservaExistente, error: erroBuscaReserva } =
     await supabaseServidor
       .from("reservas")
-      .select("id")
+      .select("id, usuario_id")
       .eq("id", id)
       .maybeSingle();
 
@@ -88,6 +108,17 @@ export async function PUT(
     return Response.json(
       { erro: "Reserva não encontrada." },
       { status: 404 }
+    );
+  }
+
+  const podeEditar =
+    reservaExistente.usuario_id === sessao.id ||
+    sessao.papel === "admin";
+
+  if (!podeEditar) {
+    return Response.json(
+      { erro: "Você não possui permissão para editar esta reserva." },
+      { status: 403 }
     );
   }
 
@@ -359,7 +390,7 @@ export async function PUT(
     );
   }
 
-  return Response.json(reservaAtualizada);
+  return Response.json({ ...reservaAtualizada, pode_editar: true });
 }
 
 export async function DELETE(
@@ -367,6 +398,49 @@ export async function DELETE(
   contexto: ContextoDaRota
 ) {
   const { id } = await contexto.params;
+
+  const sessao = await obterSessao();
+
+  if (!sessao) {
+    return Response.json(
+      { erro: "É necessário entrar para excluir uma reserva." },
+      { status: 401 }
+    );
+  }
+
+  const { data: reservaExistente, error: erroBuscaReserva } =
+    await supabaseServidor
+      .from("reservas")
+      .select("id, usuario_id")
+      .eq("id", id)
+      .maybeSingle();
+
+  if (erroBuscaReserva) {
+    console.error("Erro ao buscar reserva:", erroBuscaReserva);
+
+    return Response.json(
+      { erro: "Não foi possível consultar a reserva." },
+      { status: 500 }
+    );
+  }
+
+  if (!reservaExistente) {
+    return Response.json(
+      { erro: "Reserva não encontrada." },
+      { status: 404 }
+    );
+  }
+
+  const podeExcluir =
+    reservaExistente.usuario_id === sessao.id ||
+    sessao.papel === "admin";
+
+  if (!podeExcluir) {
+    return Response.json(
+      { erro: "Você não possui permissão para excluir esta reserva." },
+      { status: 403 }
+    );
+  }
 
   const { data, error } = await supabaseServidor
     .from("reservas")

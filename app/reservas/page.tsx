@@ -20,6 +20,7 @@ type Reserva = {
     duracao_minutos: number;
     criada_em: string;
     sala: Sala | null;
+    pode_editar: boolean;
 };
 
 type EstadoDaReserva = "Próxima" | "Em andamento" | "Encerrada";
@@ -308,6 +309,10 @@ export default function PaginaDeReservas() {
     }
 
     function iniciarEdicao(reserva: Reserva) {
+        if (!reserva.pode_editar) {
+            return;
+        }
+
         const valores = obterDataEHorarioDaReserva(reserva.inicio);
 
         setReservaEmEdicaoId(reserva.id);
@@ -342,6 +347,10 @@ export default function PaginaDeReservas() {
     }
 
     async function excluirReserva(reserva: Reserva) {
+        if (!reserva.pode_editar) {
+            return;
+        }
+
         const confirmou = window.confirm(
             `Deseja realmente excluir a reserva "${reserva.titulo}"?`
         );
@@ -730,27 +739,29 @@ export default function PaginaDeReservas() {
                                                     Duração: {reserva.duracao_minutos} minutos
                                                 </p>
 
-                                                <div className="mt-4 flex gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => iniciarEdicao(reserva)}
-                                                        disabled={reservaSendoExcluidaId === reserva.id}
-                                                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
-                                                    >
-                                                        Editar
-                                                    </button>
+                                                {reserva.pode_editar && (
+                                                    <div className="mt-4 flex gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => iniciarEdicao(reserva)}
+                                                            disabled={reservaSendoExcluidaId === reserva.id}
+                                                            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                                                        >
+                                                            Editar
+                                                        </button>
 
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => excluirReserva(reserva)}
-                                                        disabled={reservaSendoExcluidaId === reserva.id}
-                                                        className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                                                    >
-                                                        {reservaSendoExcluidaId === reserva.id
-                                                            ? "Excluindo..."
-                                                            : "Excluir"}
-                                                    </button>
-                                                </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => excluirReserva(reserva)}
+                                                            disabled={reservaSendoExcluidaId === reserva.id}
+                                                            className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                                        >
+                                                            {reservaSendoExcluidaId === reserva.id
+                                                                ? "Excluindo..."
+                                                                : "Excluir"}
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </li>
