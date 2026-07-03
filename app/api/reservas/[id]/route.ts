@@ -5,6 +5,11 @@ import {
   inicioNoPassadoOuAgora,
   podeEditarReserva,
 } from "@/lib/reservas/validacoes-temporais";
+import {
+  adicionarIntervaloAoFim,
+  obterFimDaIndisponibilidade,
+  subtrairIntervaloDoInicio,
+} from "@/lib/reservas/intervalo-reservas";
 
 type ContextoDaRota = {
   params: Promise<{
@@ -63,8 +68,15 @@ export async function GET(
   const temPermissao =
     usuario_id === sessao?.id || sessao?.papel === "admin";
 
+  const ehProprietario = sessao !== null && usuario_id === sessao.id;
+
+  const fimExibicao = ehProprietario
+    ? reserva.fim
+    : adicionarIntervaloAoFim(new Date(reserva.fim)).toISOString();
+
   return Response.json({
     ...reservaSemUsuarioId,
+    fim_exibicao: fimExibicao,
     pode_editar:
       temPermissao && podeEditarReserva(new Date(reserva.inicio)),
     pode_excluir: temPermissao,
@@ -343,14 +355,17 @@ export async function PUT(
   const inicioIso = inicio.toISOString();
   const fimIso = fim.toISOString();
 
+  const inicioDaBusca = subtrairIntervaloDoInicio(inicio);
+  const fimDaBusca = obterFimDaIndisponibilidade(fim);
+
   const { data: conflitos, error: erroConflito } =
     await supabaseServidor
       .from("reservas")
       .select("id, inicio, fim")
       .eq("sala_id", salaId)
       .neq("id", id)
-      .lt("inicio", fimIso)
-      .gt("fim", inicioIso)
+      .lt("inicio", fimDaBusca.toISOString())
+      .gt("fim", inicioDaBusca.toISOString())
       .limit(1);
 
   if (erroConflito) {
@@ -420,8 +435,15 @@ export async function PUT(
     );
   }
 
+  const ehProprietario = reservaExistente.usuario_id === sessao.id;
+
+  const fimExibicao = ehProprietario
+    ? reservaAtualizada.fim
+    : adicionarIntervaloAoFim(new Date(reservaAtualizada.fim)).toISOString();
+
   return Response.json({
     ...reservaAtualizada,
+    fim_exibicao: fimExibicao,
     pode_editar: true,
     pode_excluir: true,
   });

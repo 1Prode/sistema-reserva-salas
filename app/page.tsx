@@ -74,7 +74,7 @@ export default function PaginaInicial() {
             Regras de funcionamento
           </h2>
 
-          <div className="mt-5 grid gap-4 text-sm text-slate-600 md:grid-cols-3">
+          <div className="mt-5 grid grid-cols-1 gap-4 text-sm text-slate-600 md:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg bg-slate-50 p-4">
               <strong className="block text-slate-900">
                 Horário
@@ -97,6 +97,17 @@ export default function PaginaInicial() {
               </strong>
 
               <span>Conflitos de horário e excesso de capacidade são bloqueados.</span>
+            </div>
+
+            <div className="rounded-lg bg-slate-50 p-4">
+              <strong className="block text-slate-900">
+                Intervalo
+              </strong>
+
+              <span>
+                Após o término de cada reserva, a sala permanece indisponível
+                por 10 minutos.
+              </span>
             </div>
           </div>
         </section>
