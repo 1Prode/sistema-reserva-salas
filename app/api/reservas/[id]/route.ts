@@ -361,3 +361,37 @@ export async function PUT(
 
   return Response.json(reservaAtualizada);
 }
+
+export async function DELETE(
+  _request: Request,
+  contexto: ContextoDaRota
+) {
+  const { id } = await contexto.params;
+
+  const { data, error } = await supabaseServidor
+    .from("reservas")
+    .delete()
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Erro ao excluir reserva:", error);
+
+    return Response.json(
+      { erro: "Não foi possível excluir a reserva." },
+      { status: 500 }
+    );
+  }
+
+  if (!data) {
+    return Response.json(
+      { erro: "Reserva não encontrada." },
+      { status: 404 }
+    );
+  }
+
+  return Response.json({
+    mensagem: "Reserva excluída com sucesso.",
+  });
+}
