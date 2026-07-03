@@ -105,9 +105,17 @@ export default function PaginaDeReservas() {
     const [erroFormulario, setErroFormulario] = useState("");
     const [mensagem, setMensagem] = useState("");
 
+    const [salaFiltroId, setSalaFiltroId] = useState("");
+
     const horariosDisponiveis = gerarHorarios(
         Number(duracaoMinutos)
     );
+
+    const reservasFiltradas = salaFiltroId
+        ? reservas.filter(
+            (reserva) => reserva.sala_id === salaFiltroId
+        )
+        : reservas;
 
     useEffect(() => {
         async function carregarReservas() {
@@ -459,8 +467,34 @@ export default function PaginaDeReservas() {
                         </h2>
 
                         <span className="text-sm text-slate-500">
-                            {reservas.length} reserva(s)
+                            {reservasFiltradas.length} reserva(s)
                         </span>
+                    </div>
+
+                    <div className="mb-5">
+                        <label
+                            htmlFor="filtro-sala"
+                            className="mb-2 block text-sm font-medium"
+                        >
+                            Filtrar por sala
+                        </label>
+
+                        <select
+                            id="filtro-sala"
+                            value={salaFiltroId}
+                            onChange={(evento) =>
+                                setSalaFiltroId(evento.target.value)
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 md:max-w-sm"
+                        >
+                            <option value="">Todas as salas</option>
+
+                            {salas.map((sala) => (
+                                <option key={sala.id} value={sala.id}>
+                                    {sala.nome}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     {carregando && (
@@ -475,15 +509,17 @@ export default function PaginaDeReservas() {
                         </p>
                     )}
 
-                    {!carregando && !erro && reservas.length === 0 && (
+                    {!carregando && !erro && reservasFiltradas.length === 0 && (
                         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-slate-500">
-                            Nenhuma reserva cadastrada.
+                            {salaFiltroId
+                                ? "Nenhuma reserva encontrada para esta sala."
+                                : "Nenhuma reserva cadastrada."}
                         </div>
                     )}
 
-                    {!carregando && !erro && reservas.length > 0 && (
+                    {!carregando && !erro && reservasFiltradas.length > 0 && (
                         <ul className="space-y-4">
-                            {reservas.map((reserva) => {
+                            {reservasFiltradas.map((reserva) => {
                                 const estado = obterEstadoDaReserva(
                                     reserva,
                                     horarioAtual
