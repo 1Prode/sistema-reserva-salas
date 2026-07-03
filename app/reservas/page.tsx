@@ -127,6 +127,27 @@ function obterDataEHorarioDaReserva(inicioIso: string) {
     };
 }
 
+function obterDataLocalIso(inicioIso: string): string {
+    const partes = new Intl.DateTimeFormat("pt-BR", {
+        timeZone: "America/Fortaleza",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).formatToParts(new Date(inicioIso));
+
+    const valores = Object.fromEntries(
+        partes.map((parte) => [parte.type, parte.value])
+    );
+
+    return `${valores.year}-${valores.month}-${valores.day}`;
+}
+
+function formatarDataParaExibicao(dataIso: string): string {
+    const [ano, mes, dia] = dataIso.split("-");
+
+    return `${dia}/${mes}/${ano}`;
+}
+
 export default function PaginaDeReservas() {
     const [reservas, setReservas] = useState<Reserva[]>([]);
     const [carregando, setCarregando] = useState(true);
@@ -148,6 +169,7 @@ export default function PaginaDeReservas() {
     const [salaFiltroId, setSalaFiltroId] = useState("");
     const [filtroSituacao, setFiltroSituacao] =
         useState<FiltroSituacao>("ativas");
+    const [filtroData, setFiltroData] = useState("");
 
     const [reservaEmEdicaoId, setReservaEmEdicaoId] = useState<
         string | null
@@ -165,6 +187,10 @@ export default function PaginaDeReservas() {
 
     const agora = horarioAtual.getTime();
 
+    const datasDisponiveis = Array.from(
+        new Set(reservas.map((reserva) => obterDataLocalIso(reserva.inicio)))
+    ).sort();
+
     const reservasFiltradas = reservas.filter((reserva) => {
         const correspondeSala =
             !salaFiltroId || reserva.sala_id === salaFiltroId;
@@ -174,7 +200,10 @@ export default function PaginaDeReservas() {
         const correspondeSituacao =
             filtroSituacao === "finalizadas" ? finalizada : !finalizada;
 
-        return correspondeSala && correspondeSituacao;
+        const correspondeData =
+            !filtroData || obterDataLocalIso(reserva.inicio) === filtroData;
+
+        return correspondeSala && correspondeSituacao && correspondeData;
     });
 
     useEffect(() => {
@@ -663,6 +692,32 @@ export default function PaginaDeReservas() {
                                 {salas.map((sala) => (
                                     <option key={sala.id} value={sala.id}>
                                         {sala.nome}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="filtro-data"
+                                className="mb-2 block text-sm font-medium"
+                            >
+                                Data
+                            </label>
+
+                            <select
+                                id="filtro-data"
+                                value={filtroData}
+                                onChange={(evento) =>
+                                    setFiltroData(evento.target.value)
+                                }
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 sm:w-64"
+                            >
+                                <option value="">Todas as datas</option>
+
+                                {datasDisponiveis.map((dataDisponivel) => (
+                                    <option key={dataDisponivel} value={dataDisponivel}>
+                                        {formatarDataParaExibicao(dataDisponivel)}
                                     </option>
                                 ))}
                             </select>
