@@ -1,4 +1,5 @@
 import { supabaseServidor } from "@/lib/supabase/servidor";
+import { obterSessao } from "@/lib/auth/dal";
 
 type ContextoDaRota = {
   params: Promise<{
@@ -11,6 +12,22 @@ export async function PUT(
   contexto: ContextoDaRota
 ) {
   const { id } = await contexto.params;
+
+  const sessao = await obterSessao();
+
+  if (!sessao) {
+    return Response.json(
+      { erro: "É necessário entrar para editar uma sala." },
+      { status: 401 }
+    );
+  }
+
+  if (sessao.papel !== "admin") {
+    return Response.json(
+      { erro: "Somente administradores podem editar salas." },
+      { status: 403 }
+    );
+  }
 
   let corpo;
 
@@ -78,7 +95,11 @@ export async function PUT(
     );
   }
 
-  return Response.json(data[0]);
+  return Response.json({
+    ...data[0],
+    pode_editar: true,
+    pode_excluir: true,
+  });
 }
 
 export async function DELETE(
@@ -86,6 +107,22 @@ export async function DELETE(
   contexto: ContextoDaRota
 ) {
   const { id } = await contexto.params;
+
+  const sessao = await obterSessao();
+
+  if (!sessao) {
+    return Response.json(
+      { erro: "É necessário entrar para excluir uma sala." },
+      { status: 401 }
+    );
+  }
+
+  if (sessao.papel !== "admin") {
+    return Response.json(
+      { erro: "Somente administradores podem excluir salas." },
+      { status: 403 }
+    );
+  }
 
   const { data, error } = await supabaseServidor
     .from("salas")

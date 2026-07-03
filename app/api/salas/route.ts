@@ -1,6 +1,9 @@
 import { supabaseServidor } from "@/lib/supabase/servidor";
+import { obterSessao } from "@/lib/auth/dal";
 
 export async function GET() {
+  const sessao = await obterSessao();
+
   const { data, error } = await supabaseServidor
     .from("salas")
     .select("id, nome, capacidade, criada_em")
@@ -19,10 +22,27 @@ export async function GET() {
     );
   }
 
-  return Response.json(data);
+  const ehAdmin = sessao?.papel === "admin";
+
+  const salas = data.map((sala) => ({
+    ...sala,
+    pode_editar: ehAdmin,
+    pode_excluir: ehAdmin,
+  }));
+
+  return Response.json(salas);
 }
 
 export async function POST(request: Request) {
+  const sessao = await obterSessao();
+
+  if (!sessao) {
+    return Response.json(
+      { erro: "É necessário entrar para criar uma sala." },
+      { status: 401 }
+    );
+  }
+
   const corpo = await request.json();
 
   const nome = corpo.nome?.trim();
@@ -67,5 +87,12 @@ export async function POST(request: Request) {
     );
   }
 
-  return Response.json(data, { status: 201 });
+  return Response.json(
+    {
+      ...data,
+      pode_editar: sessao.papel === "admin",
+      pode_excluir: sessao.papel === "admin",
+    },
+    { status: 201 }
+  );
 }
