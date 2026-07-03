@@ -132,6 +132,9 @@ export default function PaginaDeReservas() {
         string | null
     >(null);
 
+    const [reservaSendoExcluidaId, setReservaSendoExcluidaId] =
+        useState<string | null>(null);
+
     const horariosDisponiveis = gerarHorarios(
         Number(duracaoMinutos)
     );
@@ -336,6 +339,54 @@ export default function PaginaDeReservas() {
         setDuracaoMinutos("30");
         setErroFormulario("");
         setMensagem("");
+    }
+
+    async function excluirReserva(reserva: Reserva) {
+        const confirmou = window.confirm(
+            `Deseja realmente excluir a reserva "${reserva.titulo}"?`
+        );
+
+        if (!confirmou) {
+            return;
+        }
+
+        setReservaSendoExcluidaId(reserva.id);
+        setErroFormulario("");
+        setMensagem("");
+
+        try {
+            const resposta = await fetch(`/api/reservas/${reserva.id}`, {
+                method: "DELETE",
+            });
+
+            const resultado = await resposta.json();
+
+            if (!resposta.ok) {
+                throw new Error(
+                    resultado.erro ?? "Não foi possível excluir a reserva."
+                );
+            }
+
+            setReservas((reservasAtuais) =>
+                reservasAtuais.filter(
+                    (reservaAtual) => reservaAtual.id !== reserva.id
+                )
+            );
+
+            if (reservaEmEdicaoId === reserva.id) {
+                cancelarEdicao();
+            }
+
+            setMensagem("Reserva excluída com sucesso.");
+        } catch (erro) {
+            setErroFormulario(
+                erro instanceof Error
+                    ? erro.message
+                    : "Ocorreu um erro ao excluir a reserva."
+            );
+        } finally {
+            setReservaSendoExcluidaId(null);
+        }
     }
 
     return (
@@ -679,13 +730,27 @@ export default function PaginaDeReservas() {
                                                     Duração: {reserva.duracao_minutos} minutos
                                                 </p>
 
-                                                <button
-                                                    type="button"
-                                                    onClick={() => iniciarEdicao(reserva)}
-                                                    className="mt-4 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
-                                                >
-                                                    Editar
-                                                </button>
+                                                <div className="mt-4 flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => iniciarEdicao(reserva)}
+                                                        disabled={reservaSendoExcluidaId === reserva.id}
+                                                        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                                                    >
+                                                        Editar
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => excluirReserva(reserva)}
+                                                        disabled={reservaSendoExcluidaId === reserva.id}
+                                                        className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                                    >
+                                                        {reservaSendoExcluidaId === reserva.id
+                                                            ? "Excluindo..."
+                                                            : "Excluir"}
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </li>
