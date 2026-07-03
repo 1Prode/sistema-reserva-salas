@@ -53,8 +53,19 @@ function obterEstadoDaReserva(
 
 function formatarData(dataIso: string) {
     return new Intl.DateTimeFormat("pt-BR", {
-        dateStyle: "short",
-        timeStyle: "short",
+        timeZone: "America/Fortaleza",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    }).format(new Date(dataIso));
+}
+
+function formatarHorario(dataIso: string) {
+    return new Intl.DateTimeFormat("pt-BR", {
+        timeZone: "America/Fortaleza",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
     }).format(new Date(dataIso));
 }
 
@@ -758,13 +769,18 @@ export default function PaginaDeReservas() {
 
                                             <div className="text-sm text-slate-600 md:text-right">
                                                 <p>
-                                                    <strong>Início:</strong>{" "}
+                                                    <strong>Data:</strong>{" "}
                                                     {formatarData(reserva.inicio)}
                                                 </p>
 
                                                 <p className="mt-1">
+                                                    <strong>Início:</strong>{" "}
+                                                    {formatarHorario(reserva.inicio)}
+                                                </p>
+
+                                                <p className="mt-1">
                                                     <strong>Fim:</strong>{" "}
-                                                    {formatarData(reserva.fim)}
+                                                    {formatarHorario(reserva.fim)}
                                                 </p>
 
                                                 <p className="mt-1">
