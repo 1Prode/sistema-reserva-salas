@@ -19,6 +19,9 @@ export default function PaginaDeSalas() {
     const [salvando, setSalvando] = useState(false);
     const [erroFormulario, setErroFormulario] = useState("");
     const [mensagem, setMensagem] = useState("");
+    const [salaEmEdicaoId, setSalaEmEdicaoId] = useState<string | null>(
+        null
+    );
 
     useEffect(() => {
         async function carregarSalas() {
@@ -50,7 +53,7 @@ export default function PaginaDeSalas() {
         void carregarSalas();
     }, []);
 
-    async function cadastrarSala(evento: FormEvent<HTMLFormElement>) {
+    async function salvarSala(evento: FormEvent<HTMLFormElement>) {
         evento.preventDefault();
 
         setSalvando(true);
@@ -58,38 +61,74 @@ export default function PaginaDeSalas() {
         setMensagem("");
 
         try {
-            const resposta = await fetch("/api/salas", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    nome,
-                    capacidade: Number(capacidade),
-                }),
-            });
+            const editando = salaEmEdicaoId !== null;
+
+            const resposta = await fetch(
+                editando
+                    ? `/api/salas/${salaEmEdicaoId}`
+                    : "/api/salas",
+                {
+                    method: editando ? "PUT" : "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        nome,
+                        capacidade: Number(capacidade),
+                    }),
+                }
+            );
 
             const resultado = await resposta.json();
 
             if (!resposta.ok) {
                 throw new Error(
-                    resultado.erro ?? "Não foi possível cadastrar a sala."
+                    resultado.erro ??
+                    `Não foi possível ${editando ? "editar" : "cadastrar"
+                    } a sala.`
                 );
             }
 
-            setSalas((salasAtuais) => [...salasAtuais, resultado]);
+            if (editando) {
+                setSalas((salasAtuais) =>
+                    salasAtuais.map((sala) =>
+                        sala.id === resultado.id ? resultado : sala
+                    )
+                );
+
+                setMensagem("Sala atualizada com sucesso.");
+            } else {
+                setSalas((salasAtuais) => [...salasAtuais, resultado]);
+                setMensagem("Sala cadastrada com sucesso.");
+            }
+
             setNome("");
             setCapacidade("");
-            setMensagem("Sala cadastrada com sucesso.");
+            setSalaEmEdicaoId(null);
         } catch (erro) {
             setErroFormulario(
                 erro instanceof Error
                     ? erro.message
-                    : "Ocorreu um erro ao cadastrar a sala."
+                    : "Ocorreu um erro ao salvar a sala."
             );
         } finally {
             setSalvando(false);
         }
+    }
+
+    function iniciarEdicao(sala: Sala) {
+        setSalaEmEdicaoId(sala.id);
+        setNome(sala.nome);
+        setCapacidade(String(sala.capacidade));
+        setErroFormulario("");
+        setMensagem("");
+    }
+
+    function cancelarEdicao() {
+        setSalaEmEdicaoId(null);
+        setNome("");
+        setCapacidade("");
+        setErroFormulario("");
     }
 
     return (
@@ -105,11 +144,11 @@ export default function PaginaDeSalas() {
 
                 <section className="mb-8 rounded-xl bg-white p-6 shadow-sm">
                     <h2 className="mb-5 text-xl font-semibold">
-                        Cadastrar sala
+                        {salaEmEdicaoId ? "Editar sala" : "Cadastrar sala"}
                     </h2>
 
                     <form
-                        onSubmit={cadastrarSala}
+                        onSubmit={salvarSala}
                         className="grid gap-4 md:grid-cols-[1fr_180px_auto] md:items-end"
                     >
                         <div>
@@ -153,13 +192,30 @@ export default function PaginaDeSalas() {
                             />
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={salvando}
-                            className="rounded-lg bg-slate-900 px-5 py-2 font-medium text-white disabled:opacity-60"
-                        >
-                            {salvando ? "Salvando..." : "Cadastrar"}
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                type="submit"
+                                disabled={salvando}
+                                className="rounded-lg bg-slate-900 px-5 py-2 font-medium text-white disabled:opacity-60"
+                            >
+                                {salvando
+                                    ? "Salvando..."
+                                    : salaEmEdicaoId
+                                        ? "Atualizar"
+                                        : "Cadastrar"}
+                            </button>
+
+                            {salaEmEdicaoId && (
+                                <button
+                                    type="button"
+                                    onClick={cancelarEdicao}
+                                    disabled={salvando}
+                                    className="rounded-lg border border-slate-300 px-4 py-2 font-medium"
+                                >
+                                    Cancelar
+                                </button>
+                            )}
+                        </div>
                     </form>
 
                     {erroFormulario && (
@@ -221,9 +277,19 @@ export default function PaginaDeSalas() {
                                         </p>
                                     </div>
 
-                                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium">
-                                        {sala.capacidade} pessoas
-                                    </span>
+                                    <div className="flex items-center gap-3">
+                                        <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium">
+                                            {sala.capacidade} pessoas
+                                        </span>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => iniciarEdicao(sala)}
+                                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+                                        >
+                                            Editar
+                                        </button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
