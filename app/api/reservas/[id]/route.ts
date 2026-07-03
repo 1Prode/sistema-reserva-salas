@@ -1,5 +1,10 @@
 import { supabaseServidor } from "@/lib/supabase/servidor";
 import { obterSessao } from "@/lib/auth/dal";
+import {
+  dataUltrapassaLimite,
+  inicioNoPassadoOuAgora,
+  podeEditarReserva,
+} from "@/lib/reservas/validacoes-temporais";
 
 type ContextoDaRota = {
   params: Promise<{
@@ -55,18 +60,20 @@ export async function GET(
 
   const { usuario_id, ...reservaSemUsuarioId } = reserva;
 
+  const temPermissao =
+    usuario_id === sessao?.id || sessao?.papel === "admin";
+
   return Response.json({
     ...reservaSemUsuarioId,
     pode_editar:
-      sessao !== null &&
-      (usuario_id === sessao.id || sessao.papel === "admin"),
+      temPermissao && podeEditarReserva(new Date(reserva.inicio)),
+    pode_excluir: temPermissao,
   });
 }
 
 type CorpoDaReserva = {
   sala_id?: unknown;
   titulo?: unknown;
-  responsavel?: unknown;
   participantes?: unknown;
   data?: unknown;
   horario_inicio?: unknown;
@@ -91,7 +98,7 @@ export async function PUT(
   const { data: reservaExistente, error: erroBuscaReserva } =
     await supabaseServidor
       .from("reservas")
-      .select("id, usuario_id")
+      .select("id, usuario_id, inicio")
       .eq("id", id)
       .maybeSingle();
 
@@ -122,6 +129,15 @@ export async function PUT(
     );
   }
 
+  if (!podeEditarReserva(new Date(reservaExistente.inicio))) {
+    return Response.json(
+      {
+        erro: "Reservas em andamento ou encerradas não podem ser editadas.",
+      },
+      { status: 409 }
+    );
+  }
+
   let corpo: CorpoDaReserva;
 
   try {
@@ -143,11 +159,6 @@ export async function PUT(
       ? corpo.titulo.trim()
       : "";
 
-  const responsavel =
-    typeof corpo.responsavel === "string"
-      ? corpo.responsavel.trim()
-      : "";
-
   const data =
     typeof corpo.data === "string"
       ? corpo.data
@@ -161,7 +172,7 @@ export async function PUT(
   const participantes = Number(corpo.participantes);
   const duracaoMinutos = Number(corpo.duracao_minutos);
 
-  if (!salaId || !titulo || !responsavel || !data || !horarioInicio) {
+  if (!salaId || !titulo || !data || !horarioInicio) {
     return Response.json(
       { erro: "Todos os campos são obrigatórios." },
       { status: 400 }
@@ -305,6 +316,26 @@ export async function PUT(
     `${data}T${horarioInicio}:00-03:00`
   );
 
+  const agora = new Date();
+
+  if (inicioNoPassadoOuAgora(inicio, agora)) {
+    return Response.json(
+      {
+        erro: "Não é possível alterar a reserva para uma data ou horário passado.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (dataUltrapassaLimite(data, agora)) {
+    return Response.json(
+      {
+        erro: "As reservas podem ser realizadas com no máximo 15 dias de antecedência.",
+      },
+      { status: 400 }
+    );
+  }
+
   const fim = new Date(
     inicio.getTime() + duracaoMinutos * 60 * 1000
   );
@@ -351,7 +382,6 @@ export async function PUT(
       .update({
         sala_id: salaId,
         titulo,
-        responsavel,
         participantes,
         inicio: inicioIso,
         fim: fimIso,
@@ -390,7 +420,11 @@ export async function PUT(
     );
   }
 
-  return Response.json({ ...reservaAtualizada, pode_editar: true });
+  return Response.json({
+    ...reservaAtualizada,
+    pode_editar: true,
+    pode_excluir: true,
+  });
 }
 
 export async function DELETE(

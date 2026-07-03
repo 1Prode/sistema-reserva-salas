@@ -123,7 +123,6 @@ export default function PaginaDeReservas() {
 
     const [salaId, setSalaId] = useState("");
     const [titulo, setTitulo] = useState("");
-    const [responsavel, setResponsavel] = useState("");
     const [participantes, setParticipantes] = useState("");
     const [data, setData] = useState("");
     const [horarioInicio, setHorarioInicio] = useState("");
@@ -245,7 +244,6 @@ export default function PaginaDeReservas() {
                     body: JSON.stringify({
                         sala_id: salaId,
                         titulo,
-                        responsavel,
                         participantes: Number(participantes),
                         data,
                         horario_inicio: horarioInicio,
@@ -300,7 +298,6 @@ export default function PaginaDeReservas() {
 
             setSalaId("");
             setTitulo("");
-            setResponsavel("");
             setParticipantes("");
             setData("");
             setHorarioInicio("");
@@ -327,7 +324,6 @@ export default function PaginaDeReservas() {
         setReservaEmEdicaoId(reserva.id);
         setSalaId(reserva.sala_id);
         setTitulo(reserva.titulo);
-        setResponsavel(reserva.responsavel);
         setParticipantes(String(reserva.participantes));
         setData(valores.data);
         setDuracaoMinutos(String(reserva.duracao_minutos));
@@ -346,7 +342,6 @@ export default function PaginaDeReservas() {
         setReservaEmEdicaoId(null);
         setSalaId("");
         setTitulo("");
-        setResponsavel("");
         setParticipantes("");
         setData("");
         setHorarioInicio("");
@@ -480,25 +475,14 @@ export default function PaginaDeReservas() {
                         </div>
 
                         <div>
-                            <label
-                                htmlFor="responsavel"
-                                className="mb-2 block text-sm font-medium"
-                            >
+                            <span className="mb-2 block text-sm font-medium">
                                 Responsável
-                            </label>
+                            </span>
 
-                            <input
-                                id="responsavel"
-                                type="text"
-                                value={responsavel}
-                                onChange={(evento) =>
-                                    setResponsavel(evento.target.value)
-                                }
-                                placeholder="Nome do responsável"
-                                required
-                                maxLength={100}
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2"
-                            />
+                            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                                Responsável: será atribuído automaticamente ao usuário
+                                autenticado.
+                            </p>
                         </div>
 
                         <div>

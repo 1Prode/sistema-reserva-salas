@@ -8,6 +8,7 @@ export type Papel = "usuario" | "admin";
 export type Sessao = {
   id: string;
   username: string;
+  nome: string;
   papel: Papel;
 };
 
@@ -25,11 +26,25 @@ export const obterSessao = cache(async (): Promise<Sessao | null> => {
 
   const { data: perfil, error: erroPerfil } = await supabaseServidor
     .from("perfis")
-    .select("username, papel")
+    .select("username, nome, papel")
     .eq("id", user.id)
     .maybeSingle();
 
   if (erroPerfil || !perfil) {
+    return null;
+  }
+
+  if (typeof perfil.username !== "string" || !perfil.username) {
+    return null;
+  }
+
+  if (typeof perfil.nome !== "string") {
+    return null;
+  }
+
+  const nomeNormalizado = perfil.nome.trim();
+
+  if (!nomeNormalizado) {
     return null;
   }
 
@@ -40,6 +55,7 @@ export const obterSessao = cache(async (): Promise<Sessao | null> => {
   return {
     id: user.id,
     username: perfil.username,
+    nome: nomeNormalizado,
     papel: perfil.papel,
   };
 });

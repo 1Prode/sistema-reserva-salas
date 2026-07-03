@@ -11,6 +11,12 @@ export type EstadoCadastro =
   | { status: "sucesso"; username: string };
 
 const MAX_TENTATIVAS_USERNAME = 5;
+const TAMANHO_MINIMO_NOME = 2;
+const TAMANHO_MAXIMO_NOME = 150;
+
+function normalizarEspacos(valor: string): string {
+  return valor.trim().replace(/\s+/g, " ");
+}
 
 async function gerarUsernameDisponivel(base: string): Promise<string> {
   const { data, error } = await supabaseServidor
@@ -68,6 +74,20 @@ export async function cadastrar(
     return { status: "erro", mensagem: "CPF inválido." };
   }
 
+  const nomeCompleto = normalizarEspacos(
+    `${primeiroNome.trim()} ${ultimoNome.trim()}`
+  );
+
+  if (
+    nomeCompleto.length < TAMANHO_MINIMO_NOME ||
+    nomeCompleto.length > TAMANHO_MAXIMO_NOME
+  ) {
+    return {
+      status: "erro",
+      mensagem: "Informe um nome completo válido.",
+    };
+  }
+
   const cpfNormalizado = normalizarCpf(cpf);
   const supabase = await criarClienteDeSessao();
 
@@ -91,7 +111,7 @@ export async function cadastrar(
       email: montarEmailTecnico(username),
       password: cpfNormalizado,
       options: {
-        data: { username },
+        data: { username, nome: nomeCompleto },
       },
     });
 
