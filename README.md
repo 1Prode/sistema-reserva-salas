@@ -1,6 +1,6 @@
 # Sistema de Reserva de Salas
 
-Aplicação web full-stack para cadastro de salas e gerenciamento de reservas, desenvolvida como solução para um desafio técnico de **Desenvolvedor(a) Full-Stack Trainee**.
+Aplicação web full-stack para cadastro de salas e gerenciamento de reservas.
 
 O projeto prioriza regras de negócio consistentes, validações no servidor, modelagem relacional, controle básico de acesso e uma interface responsiva com feedback claro ao usuário.
 
